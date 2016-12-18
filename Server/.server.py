@@ -8,8 +8,12 @@ filesDictionary = {}
 class MyDropboxHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
-        if self.headers.getheader('filename'):
+        if self.headers.getheader('upload_filename'):
             self.write_file()
+        elif self.headers.getheader('download_filename'):
+            self.send_file()
+        elif self.headers.getheader('remove_filename'):
+            self.remove_file()
         else:
             jsondata = self.rfile.read(int(self.headers['Content-Length']))
             dic = json.loads(jsondata)
@@ -25,7 +29,7 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
     def write_file(self):
         global filesDictionary
         size = long(self.headers['content-length'])
-        filename = self.headers['filename']
+        filename = self.headers['upload_filename']
         length = self.headers['Content-Length']
         print "[Uploading Module] Writing ", filename
         with open(filename, 'wb') as fh:
@@ -41,6 +45,26 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
         filesDictionary[filename] = md5(filename)
         self.send_response(200) # Sucesso
 
+    def send_file(self):
+        filename = self.headers['download_filename']
+        print "[Downloading Module] Sending ", filename
+        self.send_response(200) # Sucesso
+        self.send_header('Content-Type', 'application/zip')
+        self.end_headers()
+        with open(filename, 'rb') as fh:
+            for line in fh:
+                self.wfile.write(line)
+        print "[Downloading Module] Done sending ", filename
+
+    def remove_file(self):
+        filename = self.headers['remove_filename']
+        if os.exists(filename):
+            os.remove(filename)
+            del self.filesDictionary[filename]
+            self.send_response(200) # Sucesso
+        else:
+            self.send_response(409) # Failure
+
 def compare(metaDataDictionary):
     missingArray = []
     downloadArray = []
@@ -48,8 +72,11 @@ def compare(metaDataDictionary):
     missingArray, downloadArray, differentArray, sameArray = dict_compare(metaDataDictionary, filesDictionary)
     print "Client has to Upload", missingArray
     print "Client has to Download", downloadArray
-    print "Modified", differentArray
+    print "Different", differentArray
     print "Same", sameArray
+
+    # compara os arquivos diferentes
+    # decidir de alguma forma quem ganha
 
     return missingArray, downloadArray
 
@@ -89,7 +116,7 @@ def scan_folder(filesDictionary):
 
 if __name__ == '__main__':
     from BaseHTTPServer import HTTPServer
-    server = HTTPServer(('localhost', 8080), MyDropboxHandler)
+    server = HTTPServer(('0.0.0.0', 8080), MyDropboxHandler)
 
     scan_folder(filesDictionary)
 

@@ -9,6 +9,9 @@ import time
 
 # Documentacao Watchdog: http://pythonhosted.org/watchdog/
 
+#ip = "http://ec2-35-164-49-34.us-west-2.compute.amazonaws.com:8080"
+ip = "http://127.0.0.1:8080"
+
 # Class que cuida dos eventos realizados na pasta e sub-pastas do MyDropbox
 class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
     # Construtor
@@ -16,6 +19,7 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
         FileSystemEventHandler.__init__(self) # Chamada de construror da superclasse
         self.filesDictionary = {} # Cria/Carrega dicionario com arquivos do sistema. Dados sao guardados atraves de JSON
         self.lock = 0
+        self.downloadingFiles = []
 
     # On Create
     '''def on_created(self, event):
@@ -27,7 +31,7 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
     # On Modify
     def on_modified(self, event):
         filename = event.src_path.rstrip().split('\\', 1)[-1]
-        if not filename.startswith(".") and not os.path.isdir(event.src_path.rstrip()):
+        if not filename.startswith(".") and not os.path.isdir(event.src_path.rstrip()) and event.src_path.rstrip() not in self.downloadingFiles:
             print "[File Modified] Name: %s" % (event.src_path.rstrip())
             self.filesDictionary[event.src_path.rstrip()] = md5(event.src_path.rstrip()) # Altera valor do md5 do arquivo devido a uma mudanca nele
 
@@ -61,24 +65,36 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
 
     def send_metadata_to_server(self):
         print "[Send Metadata] Sending metadata"
-        for key, value in self.get_file_dictionary().items():
-            print key, value
-        response = requests.post('http://127.0.0.1:8080', data=json.dumps(self.get_file_dictionary()))
+        #for key, value in self.get_file_dictionary().items():
+            #print key, value
+        response = requests.post(ip, data=json.dumps(self.get_file_dictionary()))
         uploadArray = json.loads(response.text.rsplit("[", 1)[0])
         downloadArray = json.loads(response.text.split("]", 1)[1])
         print "Upload array:" , uploadArray
         print "Download array" , downloadArray
         if self.lock == 0:
+            self.lock = 1
             for filename in uploadArray:
                 self.send_file_to_server(filename)
+            for filename in downloadArray:
+                self.get_file_from_server(filename)
+            self.lock = 0
 
     def send_file_to_server(self, filepath):
-        self.lock = 1
         print "[Uploading to Server] Uploading:", filepath
         with open(filepath, "rb") as f:
-            requests.post('http://127.0.0.1:8080', data=f, headers = {'filename': filepath })
+            requests.post(ip, data=f, headers = {'upload_filename': filepath })
         print "[Uploading to Server] Uploading complete:", filepath
-        self.lock = 0
+
+    def get_file_from_server(self, filepath):
+        print "[Downloading from Server] Downloading:", filepath
+        self.downloadingFiles.append(filepath)
+        response = requests.post(ip, headers = {'download_filename': filepath }, stream=True)
+        with open(filepath, 'wb') as f:
+            for line in response.iter_content(chunk_size=65536):
+                f.write(line)
+        print "[Downloading from Server] Downloading complete:", filepath
+        self.downloadingFiles.remove(filepath)
 
     def get_file_dictionary(self):
         return self.filesDictionary
