@@ -44,6 +44,7 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
                 del self.filesDictionary[event.src_path.rstrip()] # remove entrada do arquivo no dicionario
             except:
                 pass
+            self.remove_file_from_server(event.src_path.rstrip())
 
     # Rename
     def on_moved(self, event):
@@ -83,7 +84,7 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
     def send_file_to_server(self, filepath):
         print "[Uploading to Server] Uploading:", filepath
         with open(filepath, "rb") as f:
-            requests.post(ip, data=f, headers = {'upload_filename': filepath })
+            requests.post(ip, data=f, headers = {'upload_filename': filepath, 'content-length': str(os.path.getsize(filepath)), 'modification_time': str(os.path.getmtime(filepath)) })
         print "[Uploading to Server] Uploading complete:", filepath
 
     def get_file_from_server(self, filepath):
@@ -93,8 +94,14 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
         with open(filepath, 'wb') as f:
             for line in response.iter_content(chunk_size=65536):
                 f.write(line)
+        modificationTime = response.headers['modification_time']
+        os.utime(filepath, (float(modificationTime),float(modificationTime)))
         print "[Downloading from Server] Downloading complete:", filepath
         self.downloadingFiles.remove(filepath)
+
+    def remove_file_from_server(self, filepath):
+        print "[Removing from Server] Removing:", filepath
+        response = requests.post(ip, headers = {'remove_filename': filepath })
 
     def get_file_dictionary(self):
         return self.filesDictionary
@@ -111,7 +118,7 @@ def md5(fname):
             break
         except:
             print "[MD5] Failed to open file. Retrying..."
-    return hash_md5.hexdigest()
+    return hash_md5.hexdigest() + "#" + str(os.path.getmtime(fname))
 
 def scan_folder(basepath, filesDictionary):
     for path, _, filename_array in os.walk(basepath):
@@ -134,10 +141,10 @@ if __name__ == "__main__":
     observer.start()
     try:
         while True:
-            try:
-                event_handler.send_metadata_to_server()
-            except:
-                print "Unable to connect to server. Retrying..."
+            #try:
+            event_handler.send_metadata_to_server()
+            #except:
+                #print "Unable to connect to server. Retrying..."
             time.sleep(5)
     except KeyboardInterrupt:
         observer.stop()

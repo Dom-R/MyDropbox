@@ -16,8 +16,8 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
             self.remove_file()
         else:
             jsondata = self.rfile.read(int(self.headers['Content-Length']))
-            dic = json.loads(jsondata)
-            requestArray, downloadArray = compare(dic)
+            clientDic = json.loads(jsondata)
+            requestArray, downloadArray = compare(clientDic)
 
             # Envia resposta
             self.send_response(200) # Sucesso
@@ -30,7 +30,7 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
         global filesDictionary
         size = long(self.headers['content-length'])
         filename = self.headers['upload_filename']
-        length = self.headers['Content-Length']
+        modificationTime = self.headers['modification_time']
         print "[Uploading Module] Writing ", filename
         with open(filename, 'wb') as fh:
             while size > 0:
@@ -41,6 +41,7 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
                 size -= readSize
                 line = self.rfile.read(readSize)
                 fh.write(line)
+        os.utime(filename, (float(modificationTime),float(modificationTime))) # Muda tempo da ultima modificacao
         print "[Uploading Module] Done writing", filename
         filesDictionary[filename] = md5(filename)
         self.send_response(200) # Sucesso
@@ -50,6 +51,7 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
         print "[Downloading Module] Sending ", filename
         self.send_response(200) # Sucesso
         self.send_header('Content-Type', 'application/zip')
+        self.send_header('modification_time', str(os.path.getmtime(filename)))
         self.end_headers()
         with open(filename, 'rb') as fh:
             for line in fh:
@@ -57,26 +59,36 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
         print "[Downloading Module] Done sending ", filename
 
     def remove_file(self):
+        global filesDictionary
         filename = self.headers['remove_filename']
-        if os.exists(filename):
+        if os.path.exists(filename):
             os.remove(filename)
-            del self.filesDictionary[filename]
+            del filesDictionary[filename]
             self.send_response(200) # Sucesso
         else:
             self.send_response(409) # Failure
 
-def compare(metaDataDictionary):
+def compare(clientDictionary):
     missingArray = []
     downloadArray = []
 
-    missingArray, downloadArray, differentArray, sameArray = dict_compare(metaDataDictionary, filesDictionary)
-    print "Client has to Upload", missingArray
-    print "Client has to Download", downloadArray
-    print "Different", differentArray
-    print "Same", sameArray
+    missingArray, downloadArray, differentArray, sameArray = dict_compare(clientDictionary, filesDictionary)
+    print "[Compare] Client has to Upload", missingArray
+    print "[Compare] Client has to Download", downloadArray
+    print "[Compare] Different", differentArray
+    print "[Compare] Same", sameArray
 
-    # compara os arquivos diferentes
-    # decidir de alguma forma quem ganha
+    # compara os arquivos diferentes. Ganha aquele que foi modificado por ultimo
+    for filename in differentArray:
+        clientFile = clientDictionary[filename].split('#')[1]
+        serverFile = filesDictionary[filename].split('#')[1]
+
+        if serverFile > clientFile:
+            print "[Compare] Server Wins:", filename
+            downloadArray.append(filename)
+        elif clientFile > serverFile:
+            print "[Compare] Client Wins:", filename
+            missingArray.append(filename)
 
     return missingArray, downloadArray
 
@@ -101,7 +113,7 @@ def md5(fname):
             break
         except:
             print "[MD5] Failed to open file. Retrying..."
-    return hash_md5.hexdigest()
+    return hash_md5.hexdigest() + "#" + str(os.path.getmtime(fname))
 
 def scan_folder(filesDictionary):
     for path, _, filename_array in os.walk("."):
