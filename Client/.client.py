@@ -5,6 +5,7 @@ from watchdog.observers import Observer
 from watchdog.events import LoggingEventHandler, FileSystemEventHandler
 import requests
 import json
+import time
 
 # Documentacao Watchdog: http://pythonhosted.org/watchdog/
 
@@ -14,6 +15,7 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
     def __init__(self):
         FileSystemEventHandler.__init__(self) # Chamada de construror da superclasse
         self.filesDictionary = {} # Cria/Carrega dicionario com arquivos do sistema. Dados sao guardados atraves de JSON
+        self.lock = 0
 
     # On Create
     '''def on_created(self, event):
@@ -62,15 +64,21 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
         for key, value in self.get_file_dictionary().items():
             print key, value
         response = requests.post('http://127.0.0.1:8080', data=json.dumps(self.get_file_dictionary()))
-        print response.text
-        for filename in json.loads(response.text):
-            self.send_file_to_server(filename)
+        uploadArray = json.loads(response.text.rsplit("[", 1)[0])
+        downloadArray = json.loads(response.text.split("]", 1)[1])
+        print "Upload array:" , uploadArray
+        print "Download array" , downloadArray
+        if self.lock == 0:
+            for filename in uploadArray:
+                self.send_file_to_server(filename)
 
     def send_file_to_server(self, filepath):
+        self.lock = 1
         print "[Uploading to Server] Uploading:", filepath
         with open(filepath, "rb") as f:
             requests.post('http://127.0.0.1:8080', data=f, headers = {'filename': filepath })
         print "[Uploading to Server] Uploading complete:", filepath
+        self.lock = 0
 
     def get_file_dictionary(self):
         return self.filesDictionary
@@ -105,19 +113,16 @@ if __name__ == "__main__":
     path = sys.argv[1] if len(sys.argv) > 1 else '.'
     event_handler = MyDropboxFileSystemEventHandler()
     scan_folder(path, event_handler.get_file_dictionary())
-
-    for key, value in event_handler.get_file_dictionary().items():
-        print key, value
-
-    event_handler.send_metadata_to_server()
-    #event_handler.send_file_to_server("hello.c")
-
     observer = Observer()
     observer.schedule(event_handler, path, recursive=True)
     observer.start()
     try:
         while True:
-            pass
+            try:
+                event_handler.send_metadata_to_server()
+            except:
+                print "Unable to connect to server. Retrying..."
+            time.sleep(5)
     except KeyboardInterrupt:
         observer.stop()
     observer.join()
