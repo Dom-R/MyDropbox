@@ -3,6 +3,7 @@ import os
 import json
 import hashlib
 import time
+import shutil
 
 filesDictionary = {}
 removedLogDictionary = json.load(open(".removedMyDropbox")) if os.path.isfile(".removedMyDropbox") else {}
@@ -16,6 +17,8 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
             self.send_file()
         elif self.headers.getheader('remove_filename'):
             self.remove_file()
+        elif self.headers.getheader('old_filename') and self.headers.getheader('new_filename'):
+            self.move_file()
         else:
             jsondata = self.rfile.read(int(self.headers['Content-Length']))
             clientDic = json.loads(jsondata)
@@ -82,6 +85,27 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
             else:
                 os.rmdir(filename)
             print "[Removing Module] Done removing:", filename
+            self.send_response(200) # Sucesso
+        else:
+            self.send_response(409) # Failure
+
+    def move_file(self):
+        global filesDictionary
+        old_path = self.headers['old_filename']
+        new_path = self.headers['new_filename']
+        print "[Moving Module] Moving ", old_path , "to", new_path
+        if os.path.exists(old_path):
+            del filesDictionary[old_path]
+            print new_path.rsplit('\\', 1)[0]
+            os.makedirs(new_path.rsplit('\\', 1)[0])
+            shutil.move(old_path, new_path)
+            filesDictionary[new_path] = md5(new_path)
+            print "[Moving Module] Done moving ", old_path , "to", new_path
+            if os.path.exists(os.path.dirname(old_path)):
+                try:
+                    os.rmdir(os.path.dirname(old_path))
+                except: # Guard against race condition
+                    print "Couldn't remove folder as it is not empty"
             self.send_response(200) # Sucesso
         else:
             self.send_response(409) # Failure

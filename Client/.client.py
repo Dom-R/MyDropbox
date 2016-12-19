@@ -56,6 +56,7 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
             except KeyError:
                 pass
             self.filesDictionary[event.dest_path.rstrip()] = md5(event.dest_path.rstrip()) # Adiciona nova localizacao do arquivo ao dicionario
+            self.send_file_rename_send_to_server(event.src_path.rstrip(), event.dest_path.rstrip())
 
     # Em qualquer evento
     '''def on_any_event(self, event):
@@ -127,6 +128,10 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
                 except: # Guard against race condition
                     print "Couldn't remove folder as it is not empty"
         print "[Removing Module] Done removing ", filepath
+
+    def send_file_rename_send_to_server(self, old_path, new_path):
+        print "[Moving Module] Moving ", old_path , "to", new_path
+        response = requests.post(ip, headers = {'old_filename': old_path, 'new_filename': new_path })
 
     def get_file_dictionary(self):
         return self.filesDictionary
