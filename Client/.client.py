@@ -17,7 +17,7 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
     # Construtor
     def __init__(self):
         FileSystemEventHandler.__init__(self) # Chamada de construror da superclasse
-        self.filesDictionary = {} # Cria/Carrega dicionario com arquivos do sistema. Dados sao guardados atraves de JSON
+        self.filesDictionary = {} # Cria/Carrega dicionario com arquivos do sistema.
         self.lock = 0
         self.downloadingFiles = []
 
@@ -69,16 +69,22 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
         #for key, value in self.get_file_dictionary().items():
             #print key, value
         response = requests.post(ip, data=json.dumps(self.get_file_dictionary()))
-        uploadArray = json.loads(response.text.rsplit("[", 1)[0])
-        downloadArray = json.loads(response.text.split("]", 1)[1])
+        responseJson = response.json()
+        uploadArray = responseJson['uploadArray']
+        downloadArray = responseJson['downloadArray']
+        removeArray = responseJson['removeArray']
+
         print "Upload array:" , uploadArray
         print "Download array" , downloadArray
+        print "Remove array", removeArray
         if self.lock == 0:
             self.lock = 1
             for filename in uploadArray:
                 self.send_file_to_server(filename)
             for filename in downloadArray:
                 self.get_file_from_server(filename)
+            for filename in removeArray:
+                self.remove_file_from_client(filename)
             self.lock = 0
 
     def send_file_to_server(self, filepath):
@@ -108,6 +114,16 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
     def remove_file_from_server(self, filepath):
         print "[Removing from Server] Removing:", filepath
         response = requests.post(ip, headers = {'remove_filename': filepath })
+
+    def remove_file_from_client(self, filepath):
+        print "[Removing Module] Removing ", filepath
+        if os.path.exists(filepath):
+            if not os.path.isdir(filepath):
+                os.remove(filepath)
+                del self.filesDictionary[filepath]
+            else:
+                os.rmdir(filepath)
+        print "[Removing Module] Done removing ", filepath
 
     def get_file_dictionary(self):
         return self.filesDictionary

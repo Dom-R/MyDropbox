@@ -2,8 +2,10 @@ from BaseHTTPServer import BaseHTTPRequestHandler
 import os
 import json
 import hashlib
+import time
 
 filesDictionary = {}
+removedLogDictionary = json.load(open(".removedMyDropbox")) if os.path.isfile(".removedMyDropbox") else {}
 
 class MyDropboxHandler(BaseHTTPRequestHandler):
 
@@ -17,14 +19,15 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
         else:
             jsondata = self.rfile.read(int(self.headers['Content-Length']))
             clientDic = json.loads(jsondata)
-            requestArray, downloadArray = compare(clientDic)
+            uploadArray, downloadArray, removeArray = compare(clientDic)
+
+            jsonResponse = { 'uploadArray': uploadArray, 'downloadArray': downloadArray, 'removeArray': removeArray }
 
             # Envia resposta
             self.send_response(200) # Sucesso
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps(requestArray)) # Envia array com arquivos para enviar para o servidor
-            self.wfile.write(json.dumps(downloadArray)) # Envia array com arquivos para enviar para o servidor
+            self.wfile.write(json.dumps(jsonResponse)) # Envia dicionario com as 3 arrays. Upload para servidor, baixar do servidor e remover no cliente
 
     def write_file(self):
         global filesDictionary
@@ -66,15 +69,19 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
 
     def remove_file(self):
         global filesDictionary
+        global removedLogDictionary
         filename = self.headers['remove_filename']
-        print "[Removing Module] Removing ", filename
+        print "[Removing Module] Removing:", filename
         if os.path.exists(filename):
             if not os.path.isdir(filename):
+                print "[Removing Module] Removed time:", time.time()
+                removedLogDictionary[filename] = time.time()
+                json.dump(removedLogDictionary, open(".removedMyDropbox", "w+")) # Salva dicionario como json no arquivo de metadados
                 os.remove(filename)
                 del filesDictionary[filename]
             else:
                 os.rmdir(filename)
-            print "[Removing Module] Done removing ", filename
+            print "[Removing Module] Done removing:", filename
             self.send_response(200) # Sucesso
         else:
             self.send_response(409) # Failure
@@ -82,6 +89,7 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
 def compare(clientDictionary):
     missingArray = []
     downloadArray = []
+    removeArray = []
 
     missingArray, downloadArray, differentArray, sameArray = dict_compare(clientDictionary, filesDictionary)
     print "[Compare] Client has to Upload", missingArray
@@ -89,10 +97,23 @@ def compare(clientDictionary):
     print "[Compare] Different", differentArray
     print "[Compare] Same", sameArray
 
+    # verifica se arquivo deveria estar deletado
+    for filename in missingArray:
+        clientFile = float(clientDictionary[filename].split('#')[1])
+
+        if filename in removedLogDictionary:
+            if removedLogDictionary[filename] > clientFile:
+                missingArray.remove(filename)
+                removeArray.append(filename)
+                continue
+            else:
+                del removedLogDictionary[filename]
+                json.dump(removedLogDictionary, open(".removedMyDropbox", "w+")) # Salva dicionario como json no arquivo de metadados
+
     # compara os arquivos diferentes. Ganha aquele que foi modificado por ultimo
     for filename in differentArray:
-        clientFile = clientDictionary[filename].split('#')[1]
-        serverFile = filesDictionary[filename].split('#')[1]
+        clientFile = float(clientDictionary[filename].split('#')[1])
+        serverFile = float(filesDictionary[filename].split('#')[1])
 
         if serverFile > clientFile:
             print "[Compare] Server Wins:", filename
@@ -101,7 +122,7 @@ def compare(clientDictionary):
             print "[Compare] Client Wins:", filename
             missingArray.append(filename)
 
-    return missingArray, downloadArray
+    return missingArray, downloadArray, removeArray
 
 def dict_compare(d1, d2):
     d1_keys = set(d1.keys())
