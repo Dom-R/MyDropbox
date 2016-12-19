@@ -91,6 +91,12 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
         print "[Downloading from Server] Downloading:", filepath
         self.downloadingFiles.append(filepath)
         response = requests.post(ip, headers = {'download_filename': filepath }, stream=True)
+        if not os.path.exists(os.path.dirname(filepath)):
+            try:
+                os.makedirs(os.path.dirname(filepath))
+            except OSError as exc: # Guard against race condition
+                if exc.errno != errno.EEXIST:
+                    raise
         with open(filepath, 'wb') as f:
             for line in response.iter_content(chunk_size=65536):
                 f.write(line)

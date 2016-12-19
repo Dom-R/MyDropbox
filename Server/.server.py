@@ -32,6 +32,12 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
         filename = self.headers['upload_filename']
         modificationTime = self.headers['modification_time']
         print "[Uploading Module] Writing ", filename
+        if not os.path.exists(os.path.dirname(filename)):
+            try:
+                os.makedirs(os.path.dirname(filename))
+            except OSError as exc: # Guard against race condition
+                if exc.errno != errno.EEXIST:
+                    raise
         with open(filename, 'wb') as fh:
             while size > 0:
                 if size > 65536:
@@ -61,9 +67,14 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
     def remove_file(self):
         global filesDictionary
         filename = self.headers['remove_filename']
+        print "[Removing Module] Removing ", filename
         if os.path.exists(filename):
-            os.remove(filename)
-            del filesDictionary[filename]
+            if not os.path.isdir(filename):
+                os.remove(filename)
+                del filesDictionary[filename]
+            else:
+                os.rmdir(filename)
+            print "[Removing Module] Done removing ", filename
             self.send_response(200) # Sucesso
         else:
             self.send_response(409) # Failure
