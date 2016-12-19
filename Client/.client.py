@@ -118,11 +118,14 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
     def remove_file_from_client(self, filepath):
         print "[Removing Module] Removing ", filepath
         if os.path.exists(filepath):
-            if not os.path.isdir(filepath):
-                os.remove(filepath)
-                del self.filesDictionary[filepath]
-            else:
-                os.rmdir(filepath)
+            os.remove(filepath)
+            del self.filesDictionary[filepath]
+            # tenta remover pasta
+            if os.path.exists(os.path.dirname(filepath)):
+                try:
+                    os.rmdir(os.path.dirname(filepath))
+                except: # Guard against race condition
+                    print "Couldn't remove folder as it is not empty"
         print "[Removing Module] Done removing ", filepath
 
     def get_file_dictionary(self):
