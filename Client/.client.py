@@ -9,8 +9,8 @@ import time
 
 # Documentacao Watchdog: http://pythonhosted.org/watchdog/
 
-ip = "http://ec2-35-164-49-34.us-west-2.compute.amazonaws.com:8080"
-#ip = "http://127.0.0.1:8080"
+#ip = "http://ec2-35-164-49-34.us-west-2.compute.amazonaws.com:8080"
+ip = "http://127.0.0.1:8080"
 
 # Class que cuida dos eventos realizados na pasta e sub-pastas do MyDropbox
 class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
