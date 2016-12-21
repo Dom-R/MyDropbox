@@ -9,8 +9,8 @@ import time
 
 # Documentacao Watchdog: http://pythonhosted.org/watchdog/
 
-#ip = "http://ec2-35-164-49-34.us-west-2.compute.amazonaws.com:8080"
-ip = "http://127.0.0.1:8080"
+ip = "http://ec2-35-164-49-34.us-west-2.compute.amazonaws.com:8080"
+#ip = "http://127.0.0.1:8080"
 
 # Class que cuida dos eventos realizados na pasta e sub-pastas do MyDropbox
 class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
@@ -114,7 +114,7 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
 
     def remove_file_from_server(self, filepath):
         print "[Removing from Server] Removing:", filepath
-        response = requests.post(ip, headers = {'remove_filename': filepath })
+        requests.post(ip, headers = {'remove_filename': filepath })
 
     def remove_file_from_client(self, filepath):
         print "[Removing Module] Removing ", filepath
@@ -131,7 +131,7 @@ class MyDropboxFileSystemEventHandler(FileSystemEventHandler):
 
     def send_file_rename_send_to_server(self, old_path, new_path):
         print "[Moving Module] Moving ", old_path , "to", new_path
-        response = requests.post(ip, headers = {'old_filename': old_path, 'new_filename': new_path })
+        requests.post(ip, headers = {'old_filename': old_path, 'new_filename': new_path })
 
     def get_file_dictionary(self):
         return self.filesDictionary

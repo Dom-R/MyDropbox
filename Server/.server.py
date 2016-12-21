@@ -40,7 +40,7 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
         print "[Uploading Module] Writing ", filename
         if not os.path.exists(os.path.dirname(filename)):
             try:
-                os.makedirs(os.path.dirname(filename))
+                os.makedirs(os.path.dirname(filename), mode=0777)
             except OSError as exc: # Guard against race condition
                 if exc.errno != errno.EEXIST:
                     raise
@@ -96,10 +96,11 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
         print "[Moving Module] Moving ", old_path , "to", new_path
         if os.path.exists(old_path):
             del filesDictionary[old_path]
-            print new_path.rsplit('\\', 1)[0]
-            os.makedirs(new_path.rsplit('\\', 1)[0])
+            #print new_path.rsplit('\\', 1)[0]
+            os.makedirs(new_path.rsplit('\\', 1)[0], mode=0777)
             shutil.move(old_path, new_path)
             filesDictionary[new_path] = md5(new_path)
+            removedLogDictionary[old_path] = time.time()
             print "[Moving Module] Done moving ", old_path , "to", new_path
             if os.path.exists(os.path.dirname(old_path)):
                 try:
