@@ -38,12 +38,12 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
         filename = self.headers['upload_filename']
         modificationTime = self.headers['modification_time']
         print "[Uploading Module] Writing ", filename
-        if not os.path.exists(os.path.dirname(filename)):
+        '''if not os.path.exists(os.path.dirname(filename)):
             try:
                 os.makedirs(os.path.dirname(filename), mode=0777)
             except OSError as exc: # Guard against race condition
                 if exc.errno != errno.EEXIST:
-                    raise
+                    raise'''
         with open(filename, 'wb') as fh:
             while size > 0:
                 if size > 65536:
@@ -98,12 +98,12 @@ class MyDropboxHandler(BaseHTTPRequestHandler):
             del filesDictionary[old_path]
             #print new_path.rsplit('\\', 1)[0]
 
-            if not os.path.exists(os.path.dirname(new_path)):
+            '''if not os.path.exists(os.path.dirname(new_path)):
                 try:
                     os.makedirs(os.path.dirname(new_path), mode=0777)
                 except OSError as exc: # Guard against race condition
                     if exc.errno != errno.EEXIST:
-                        raise
+                        raise'''
 
             shutil.move(old_path, new_path)
             filesDictionary[new_path] = md5(new_path)
